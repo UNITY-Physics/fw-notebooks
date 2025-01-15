@@ -1,0 +1,21 @@
+subject,session,age,sex,group,weight,total intracranial
+sample-001,baseline,1000,F,patient,38,1017801
+sample-002,baseline,1013,F,control,40,1018142
+sample-003,baseline,1062,F,patient,42,1035627
+sample-004,baseline,1100,F,control,45,1035689
+sample-005,baseline,1182,F,patient,46,1049568
+sample-006,baseline,1254,F,control,49,1050041
+sample-007,baseline,1276,F,patient,50,1078446
+sample-008,baseline,1286,F,control,50,1078873
+sample-009,baseline,1307,F,patient,52,1100428
+sample-010,baseline,1379,F,control,53,1100711
+sample-011,baseline,1100,M,patient,42,1130043
+sample-012,baseline,1196,M,control,45,1130063
+sample-013,baseline,1212,M,patient,46,1193645
+sample-014,baseline,1246,M,control,49,1193964
+sample-015,baseline,1254,M,patient,50,1218325
+sample-016,baseline,1289,M,control,50,1218650
+sample-017,baseline,1383,M,patient,52,1232755
+sample-018,baseline,1404,M,control,53,1232781
+sample-019,baseline,1418,M,patient,66,1255808
+sample-020,baseline,1453,M,control,68,1256283
