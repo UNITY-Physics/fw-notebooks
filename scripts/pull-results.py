@@ -40,6 +40,7 @@ debug = bool(str(args.debug).strip())
 group_names = ["global_map","prisma"]
 project_labels = []
 fw = flywheel.Client(api_key=api_key)
+print(fw)
 
 for group_name in group_names:    
     # Get the group
