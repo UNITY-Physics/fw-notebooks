@@ -18,9 +18,6 @@ Specify the keyword (to look for in the file of interest), project name, gear, a
 st = time.time()
 
 # Flywheel connector
-api_key = os.environ.get('FW_CLI_API_KEY')
-print(api_key)
-fw = flywheel.Client(api_key=api_key)
 
 group_names = ["global_map","prisma"]
 project_labels = []
@@ -43,13 +40,15 @@ parser.add_argument('--keyword', '-keyword', nargs='?', help='keyword in filenam
 
 args = parser.parse_args()
 
-# Filters
+
+api_key = (str(args.apikey)).strip()
 gear = (str(args.gear)).strip() # recode this as variable that user selects in config
 gearVersion = (str(args.gearV)).strip()
 keyword = (str(args.keyword)).strip()
 
 timestampFilter = datetime(2024, 7, 10, 0, 0, 0, 0, pytz.UTC) # Date before which we want to filter analyses (i.e. only get analyses run after this date)
 
+fw = flywheel.Client(api_key=api_key)
 
 download_path = os.path.join(os.getcwd(),'tmp')
 
