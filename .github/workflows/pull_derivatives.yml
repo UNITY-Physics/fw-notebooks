@@ -8,6 +8,10 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
+
+    env:
+      FW_CLI_API_KEY: ${{ secrets.FW_CLI_API_KEY }}
+      
     strategy:
       matrix:
         include:
