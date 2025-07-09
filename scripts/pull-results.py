@@ -18,24 +18,13 @@ Specify the keyword (to look for in the file of interest), project name, gear, a
 st = time.time()
 
 # Flywheel connector
-
-group_names = ["global_map","prisma"]
-project_labels = []
-
-for group_name in group_names:    
-    # Get the group
-    group = fw.lookup(f"{group_name}")
-    group = group.reload()
-    # Get the projects in the group
-    projects = group.projects()
-    project_labels.extend([project.label for project in projects])
-
 # Extract gear and gear version from cmd arguments
 parser = argparse.ArgumentParser(prog='pull FW results')
 parser.add_argument('--apikey','-apikey', nargs='?', help='FW CLI API key')
 parser.add_argument('--gear','-gear', nargs='?', help='gear name')
 parser.add_argument('--gearV', '-gearV',nargs='?', help='gear version')
 parser.add_argument('--keyword', '-keyword', nargs='?', help='keyword in filename')
+parser.add_argument('--debug', '-debug', nargs='?', default=0, help='keyword in filename')
 
 
 args = parser.parse_args()
@@ -45,13 +34,32 @@ api_key = (str(args.apikey)).strip()
 gear = (str(args.gear)).strip() # recode this as variable that user selects in config
 gearVersion = (str(args.gearV)).strip()
 keyword = (str(args.keyword)).strip()
+debug = bool(str(args.debug).strip())
+
+
+group_names = ["global_map","prisma"]
+project_labels = []
+fw = flywheel.Client(api_key=api_key)
+
+for group_name in group_names:    
+    # Get the group
+    group = fw.lookup(f"{group_name}")
+    group = group.reload()
+    # Get the projects in the group
+    projects = group.projects()
+    project_labels.extend([project.label for project in projects])
+
+
 
 timestampFilter = datetime(2024, 7, 10, 0, 0, 0, 0, pytz.UTC) # Date before which we want to filter analyses (i.e. only get analyses run after this date)
 
-fw = flywheel.Client(api_key=api_key)
 
-download_path = os.path.join(os.getcwd(),'tmp')
 
+download_path = Path.cwd() / 'tmp'
+download_path.mkdir(parents=True, exist_ok=True)
+
+if debug:
+    projects = [projects[0]]
 # Loop over all projects
 for project_label in projects:   
     
@@ -59,13 +67,11 @@ for project_label in projects:
         project = fw.projects.find_first(f"label={project_label}").reload()
         # --- prep output --- #
 
-        # Create a work directory in our local "home" directory
-        work_dir = Path(download_path, platform='auto')
-        # If it doesn't exist, create it
-        if not work_dir.exists():
-            work_dir.mkdir(parents = True)
+        
         # Create a custom path for our project (we may run this on other projects in the future) and create if it doesn't exist
-        project_path = pv.sanitize_filepath(work_dir/project.label/gear, platform='auto')
+        project_path = download_path / project.label / gear
+        project_path = pv.sanitize_filepath(project_path) 
+
         if not project_path.exists():
             project_path.mkdir(parents = True)
         # Preallocate lists
@@ -98,7 +104,7 @@ for project_label in projects:
                                 if not download_dir.exists():
                                     download_dir.mkdir(parents=True)
                                 download_path = download_dir/fileName
-                                print(download_path)
+                                
 
                                 # Download the file
                                 print('Downloading file: ', ses_label, analysis.label)

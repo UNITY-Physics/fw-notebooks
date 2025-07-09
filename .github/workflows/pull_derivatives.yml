@@ -34,7 +34,7 @@ jobs:
       - name: Run the script
         run: |
           mkdir -p scripts/tmp
-          python main.py \
+          python scripts/pull-results.py \
             -apikey $FW_CLI_API_KEY \
             -gear ${{ matrix.gear.name }} \
             -gearV ${{ matrix.gear.version }} \
