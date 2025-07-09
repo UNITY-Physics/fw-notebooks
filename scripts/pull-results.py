@@ -30,7 +30,7 @@ parser.add_argument('--debug', '-debug', nargs='?', default=0, help='keyword in 
 args = parser.parse_args()
 
 
-api_key = (str(args.apikey)).strip()
+api_key = args.apikey
 gear = (str(args.gear)).strip() # recode this as variable that user selects in config
 gearVersion = (str(args.gearV)).strip()
 keyword = (str(args.keyword)).strip()
@@ -39,7 +39,7 @@ debug = bool(str(args.debug).strip())
 
 group_names = ["global_map","prisma"]
 project_labels = []
-print(fw)
+print("API key: ", api_key)
 fw = flywheel.Client(api_key=api_key)
 
 
