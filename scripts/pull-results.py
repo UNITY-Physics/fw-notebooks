@@ -39,7 +39,6 @@ debug = bool(str(args.debug).strip())
 
 group_names = ["global_map","prisma"]
 project_labels = []
-print("API key: ", api_key)
 fw = flywheel.Client(api_key=api_key)
 
 
