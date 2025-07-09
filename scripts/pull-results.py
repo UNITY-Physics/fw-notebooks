@@ -1,7 +1,5 @@
-import os
 import flywheel
 from pathlib import Path
-import pathvalidate as pv
 import pandas as pd
 from datetime import datetime
 import pytz
@@ -50,91 +48,68 @@ for group_name in group_names:
     projects = group.projects()
     project_labels.extend([project.label for project in projects])
 
-
-
 timestampFilter = datetime(2024, 7, 10, 0, 0, 0, 0, pytz.UTC) # Date before which we want to filter analyses (i.e. only get analyses run after this date)
 
-
-
-download_path = Path.cwd() / 'tmp'
+download_path = Path.cwd() / 'results' / gear / gearVersion
 download_path.mkdir(parents=True, exist_ok=True)
 
 if debug:
     projects = [projects[0]]
 # Loop over all projects
-for project_label in projects:   
-    
-        print(f"Processing: {project_label}")
-        project = fw.projects.find_first(f"label={project_label}").reload()
-        # --- prep output --- #
-
-        
-        # Create a custom path for our project (we may run this on other projects in the future) and create if it doesn't exist
-        project_path = download_path / project.label / gear
-        project_path = pv.sanitize_filepath(project_path) 
-
-        if not project_path.exists():
-            project_path.mkdir(parents = True)
-        # Preallocate lists
-        df = []
-        
-        # --- Find the results --- #
-
-        # Iterate through all subjects in the project and find the results
-        for subject in project.subjects.iter():
-            subject = subject.reload()
-            sub_label = subject.label
-            for session in subject.sessions.iter():
-                session = session.reload()
-                ses_label = session.label
-
-                print(sub_label, ses_label)
-                for analysis in session.analyses:
-                    #print("Analyses ran on this subject: ", analysis.gear_info.name, analysis.gear_info.version)
-                    if analysis.gear_info is not None and analysis.gear_info.name == gear and analysis.created > timestampFilter and analysis.gear_info.version == gearVersion and analysis.get("job").get("state") == "complete":
-                        print("pulling: ", gear, gearVersion)
-                        for analysis_file in analysis.files:
-                            if keyword in analysis_file.name:
-                                file = analysis_file
-                                file = file.reload()
-                                # Sanitize our filename and parent path
-                                download_dir = pv.sanitize_filepath(project_path/sub_label/ses_label,platform='auto')   
-                                fileName = file.name #(analysis.gear_info.name + "_" + analysis.label + ".csv")
-
-                                # Create the path
-                                if not download_dir.exists():
-                                    download_dir.mkdir(parents=True)
-                                download_path = download_dir/fileName
-                                
-
-                                # Download the file
-                                print('Downloading file: ', ses_label, analysis.label)
-                                file.download(download_path)
-
-                                # Add subject to dataframe
-                                with open(download_path) as csv_file:
-                                    results = pd.read_csv(csv_file, index_col=None, header=0) 
-                                    df.append(results)
-                                    
-        # --- Save output --- #
-
-        try:
-            outname = project.label.replace(' ', '_')
-            outname = outname.replace('(', '')
-            outname = outname.replace(')', '')
-            filename = (outname + "-" + gear + "-" + gearVersion + "-" + f"{keyword}.csv")
-            # write DataFrame to an excel sheet 
-            df = pd.concat(df, axis=0, ignore_index=True)
-            outdir = os.path.join(project_path, filename)
-            df.to_csv(outdir)
-
-            # UPLOADS A FILE TO THE PROJECT INFORMATION TAB
-            project.upload_file(outdir)
-        except:
-            print(f"Failed to upload results for {project.label} to project info tab")
-            print("Check that if analysis was run, and that there are results to upload")
-            continue
-
+for project_label in project_labels:   
+    print(f"Processing: {project_label}")
+    project = fw.projects.find_first(f"label={project_label}").reload()
+    # --- prep output --- #
+    # Create a custom path for our project (we may run this on other projects in the future) and create if it doesn't exist
+    project_path = download_path / project.label
+    project_path.mkdir(parents=True, exist_ok=True)
+    # Preallocate lists
+    df = []
+    # --- Find the results --- #
+    # Iterate through all subjects in the project and find the results
+    for subject in project.subjects():
+        subject = subject.reload()
+        sub_label = subject.label
+        for session in subject.sessions():
+            session = session.reload()
+            ses_label = session.label
+            print(sub_label, ses_label)
+            for analysis in session.analyses:
+                if analysis.gear_info is not None and analysis.gear_info.name == gear and analysis.gear_info.version == gearVersion and analysis.get("job").get("state") == "complete": #and analysis.created > timestampFilter
+                    print("pulling: ", gear, gearVersion)
+                    for analysis_file in analysis.files:
+                        if keyword in analysis_file.name:
+                            file = analysis_file
+                            # file = file.reload()
+                            # Sanitize our filename and parent path
+                            download_dir = project_path / sub_label / ses_label   
+                            download_dir.mkdir(parents=True, exist_ok=True)
+                            fileName = file.name #(analysis.gear_info.name + "_" + analysis.label + ".csv")
+                            # Create the path
+                            download_file_path = download_dir / fileName
+                            # Download the file
+                            file.download(str(download_file_path))
+                            print("Downloaded file:", download_file_path)
+                            # Add subject to dataframe
+                            with open(download_file_path) as csv_file:
+                                results = pd.read_csv(csv_file, index_col=None, header=0) 
+                                df.append(results)
+    # --- Save output --- #
+    try:
+        outname = project.label.replace(' ', '_')
+        outname = outname.replace('(', '')
+        outname = outname.replace(')', '')
+        filename = (outname + "-" + gear + "-" + gearVersion + "-" + f"{keyword}.csv")
+        # write DataFrame to an excel sheet 
+        df = pd.concat(df, axis=0, ignore_index=True)
+        outdir = project_path / filename
+        df.to_csv(outdir)
+        # UPLOADS A FILE TO THE PROJECT INFORMATION TAB
+        project.upload_file(str(outdir))
+    except:
+        print(f"Failed to upload results for {project.label} to project info tab")
+        print("Check that if analysis was run, and that there are results to upload")
+        continue
 # get the end time
 et = time.time()
 # get the execution time
