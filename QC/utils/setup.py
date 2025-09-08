@@ -35,6 +35,21 @@ import plotly.express as px
 from skimage.transform import resize
 from ipywidgets import interact, FloatSlider, IntSlider
 
+
+import os
+import subprocess
+# Source zshrc and get the env var you want
+def get_env_from_zshrc(var_name):
+    command = f"source ~/.zshrc && echo ${var_name}"
+    result = subprocess.run(['zsh', '-c', command], stdout=subprocess.PIPE, text=True)
+    return result.stdout.strip()
+
+api_key = get_env_from_zshrc('FW_CLI_API_KEY')
+# Connect to your Flywheel instance
+
+fw = flywheel.Client(api_key=api_key)
+display(f"User: {fw.get_current_user().firstname} {fw.get_current_user().lastname}")
+
 def preprocess_nifti(nifti_path, target_height=300):
     # load data
     data = nib.load(nifti_path).get_fdata()
@@ -74,7 +89,7 @@ def preprocess_nifti(nifti_path, target_height=300):
     
     return data, plane[0], ax
         
-def nifti_overlay_animation(native_path, seg_path, sub, outliers, target_height=300, alpha=0.4, cmap='viridis'):
+def nifti_overlay_animation(colored_data,native_path, seg_path, sub, outliers, orientation='axial', target_height=300, alpha=0.4,cmap="jet"):
     # Load NIfTI files
     native_img = nib.load(native_path)
     seg_img = nib.load(seg_path)
@@ -97,15 +112,36 @@ def nifti_overlay_animation(native_path, seg_path, sub, outliers, target_height=
     native_data_resized = resize(native_data, new_shape, preserve_range=True, order=1).astype(np.uint8)
     seg_data_resized = resize(seg_data, new_shape, preserve_range=True, order=0).astype(np.uint8)
 
+    # Map orientation to slicing axes
+    if orientation == 'axial':
+        axis = 2
+        rotate_times = 1
+    elif orientation == 'coronal':
+        axis = 1
+        rotate_times = 1
+    elif orientation == 'sagittal':
+        axis = 0
+        rotate_times = 1
+    else:
+        raise ValueError("Orientation must be 'axial', 'coronal', or 'sagittal'.")
+    
     # Create overlay for each slice
     overlays = []
-    for i in range(native_data_resized.shape[2]):
-        background = np.stack([native_data_resized[:, :, i]]*3, axis=-1)  # Convert to RGB
-        mask = seg_data_resized[:, :, i]
+    num_slices = native_data_resized.shape[axis]
+    for i in range(num_slices):
+        if axis == 2:
+            background = np.stack([native_data_resized[:, :, i]]*3, axis=-1)
+            mask = seg_data_resized[:, :, i]
+        elif axis == 1:
+            background = np.stack([native_data_resized[:, i, :]]*3, axis=-1)
+            mask = seg_data_resized[:, i, :]
+        elif axis == 0:
+            background = np.stack([native_data_resized[i, :, :]]*3, axis=-1)
+            mask = seg_data_resized[i, :, :]
 
-        # Rotate both background and mask
-        background = np.rot90(background)
-        mask = np.rot90(mask)
+        # Rotate for display
+        background = np.rot90(background, k=rotate_times)
+        mask = np.rot90(mask, k=rotate_times)
 
         # Apply colormap to mask
         mask_rgb = plt.get_cmap(cmap)(mask)[:, :, :3]  # Drop alpha channel
@@ -166,8 +202,9 @@ def download_analysis_files(asys,sub_label,ses_label,str_pattern,download_dir):
     fw.download_input_from_analysis( asys.id, input_file.name, download_path)
     print("Downloaded input file:",download_path)
     
+    print([file.name for file in asys.files])
     for file in asys.files:            
-        if re.search(str_pattern, file.name) and file.name.endswith('nii.gz') : #or re.search(rf'{input_gear}.*\.nii.gz', file.name):
+        if file.name.endswith('nii.gz') : #re.search(str_pattern, file.name) and #or re.search(rf'{input_gear}.*\.nii.gz', file.name):
 
         #if file.name.endswith('aparc+aseg.nii.gz') or file.name.endswith('synthSR.nii.gz') or re.search('ResCNN.*\.nii.gz', file.name) or re.search('mrr_fast.*\.nii.gz', file.name) or re.search('mrr-axireg.*\.nii.gz', file.name) or re.search('.*\.zip', file.name):
             parcellation = file
@@ -180,11 +217,15 @@ def download_analysis_files(asys,sub_label,ses_label,str_pattern,download_dir):
                 print('Downloaded parcellation ',download_path)
                 
 
-def get_data(sub_label, ses_label, seg_gear, input_gear, v,download_dir):
+def get_data(sub_label, ses_label, seg_gear, input_gear, v,download_dir,project_label="Botswana-MOTHEO",api_key=api_key):
     
     from fw_client import FWClient
     #api_key = os.environ.get('FW_CLI_API_KEY')
     fw_ = FWClient(api_key=api_key)
+
+    project = fw.projects.find_first(f'label={project_label}')
+    display(f"Project: {project.label}")
+    project = project.reload()
 
     subject = project.subjects.find_first(f'label="{sub_label}"')
     subject = subject.reload()
@@ -207,7 +248,7 @@ def get_data(sub_label, ses_label, seg_gear, input_gear, v,download_dir):
     else:
         try:
             if input_gear.startswith("gambas"):
-                seg_gear = seg_gear + "-gambas"
+                seg_gear = seg_gear + "_gambas"
                 print("Looking for anaylyses from ", seg_gear)
 
             matches = [asys for asys in analyses if asys.label.startswith(seg_gear) and asys.job.get('state') == "complete"]
@@ -244,9 +285,10 @@ def get_data(sub_label, ses_label, seg_gear, input_gear, v,download_dir):
             
 
 
-def load_ratings(RATINGS_FILE):
+def load_ratings(RATINGS_FILE,metrics):
     if os.path.exists(RATINGS_FILE):
         return pd.read_csv(RATINGS_FILE)
+    
     return pd.DataFrame(columns=["User", "Timestamp", "Project", "Subject", "Session"] + metrics)
     
 # Function to simplify acquisition labels
@@ -284,8 +326,10 @@ def simplify_label(label):
     # Return combined result or original label if no matches
     return '_'.join(result) if result else label
 
-def save_rating(ratings_file, responses,project):
-    df = load_ratings(ratings_file)
+def save_rating(ratings_file, responses,project,metrics):
+    df = load_ratings(ratings_file,metrics)
+    print(df.columns)
+    print(responses, len(responses))
     new_entry = pd.DataFrame([responses], 
                               columns=df.columns)
     
@@ -295,7 +339,7 @@ def save_rating(ratings_file, responses,project):
     df.to_csv(ratings_file, index=False)
     log.info(f"\nSaved rating: {ratings_file}")
     custom_name = ratings_file.split('/')[-1]
-    project.upload_file(ratings_file, filename=custom_name)
+    #project.upload_file(ratings_file, filename=custom_name)
     log.info("QC responses have been uploaded to the project information tab.")
 
     
